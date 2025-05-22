@@ -8,7 +8,7 @@ const SLACK_GITHUB_TOKEN = process.env.SLACK_GITHUB_TOKEN;
 const SLACK_GITHUB_CHANNEL = process.env.SLACK_GITHUB_CHANNEL;
 const SLACK_USERS_MAP = process.env.SLACK_USERS_MAP;
 const GITHUB_JSON = process.env.GITHUB_JSON;
-const
+const SALESFORCE_ORG_URL = process.env.SALESFORCE_ORG_URL;
 
 async function getSlackMessage(prLink, prName, deployId, deploySuccess, actor, triggeringActor, status, errors, orgUrl, base, head){
   let skipPmdIcon = prName.includes('--skip-pmd-check') ? '✅' : '🚫';
@@ -80,7 +80,7 @@ async function init() {
       }
     }
     
-    let orgUrl = 'https://ourofino-conecta--devvsmligh.sandbox.my.salesforce-setup.com';
+    let orgUrl = SALESFORCE_ORG_URL ?? 'http://login.salesforce.com';
     let deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
     let deployId = deployReport.result.id;
     let deploySuccess = deployReport.result.success;
