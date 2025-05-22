@@ -101,6 +101,7 @@ async function init() {
     let token = SLACK_GITHUB_TOKEN;
     let channel = usersMap[actor];
     const url = "https://slack.com/api/chat.postMessage";
+    console.log('orgUrl : ' + orgUrl);
     if(!token || !channel){
       core.setFailed('Token ou canal inválido');
       console.log('Token ou canal inválido');
