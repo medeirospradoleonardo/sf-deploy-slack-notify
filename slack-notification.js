@@ -11,6 +11,13 @@ const GITHUB_JSON = process.env.GITHUB_JSON;
 const SALESFORCE_ORG_URL = process.env.SALESFORCE_ORG_URL;
 
 async function getSlackMessage(prLink, prName, deployId, deploySuccess, actor, triggeringActor, status, errors, orgUrl, base, head){
+  if(!orgUrl){
+    console.log('!orgUrl ' + !orgUrl);
+    orgUrl = 'http://login.salesforce.com';
+  }
+
+  console.log('orgUrl2 ' + orgUrl);
+
   let skipPmdIcon = prName.includes('--skip-pmd-check') ? '✅' : '🚫';
   prName = prName.replace('--skip-pmd-check', '')
   let deployUrl = orgUrl + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId +'&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
@@ -80,7 +87,7 @@ async function init() {
       }
     }
     
-    let orgUrl = SALESFORCE_ORG_URL ?? 'http://login.salesforce.com';
+    let orgUrl = SALESFORCE_ORG_URL;
     let deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
     let deployId = deployReport.result.id;
     let deploySuccess = deployReport.result.success;
