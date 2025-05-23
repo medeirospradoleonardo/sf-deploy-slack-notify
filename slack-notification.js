@@ -64,10 +64,17 @@ function getErrors(report){
   let errors = [];
   
   report?.result?.files?.forEach( file => {
-    errors.push({
-      "type": "text",
-      "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
-    })
+    if(file?.state !== 'Created'){
+      errors.push({
+        "type": "text",
+        "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
+      })
+    }else{
+      errors.push({
+        "type": "text",
+        "text": `🟢 [${file.type}] ${file.fullName} \n`
+      })
+    }
   })
   let rich_text_errors = [{
     "type" : "rich_text_preformatted",
