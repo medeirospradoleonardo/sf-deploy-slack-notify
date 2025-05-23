@@ -104,6 +104,7 @@ async function init() {
     let prTitle = githubjson.event.pull_request?.title;
     let slackMessage;
     let actor = githubjson.actor;
+    console.log(JSON.stringify(githubjson));
     console.log(JSON.stringify(deployReport));
     if(githubjson?.event_name === 'pull_request'){
       let triggeringActor = githubjson.triggering_actor;
