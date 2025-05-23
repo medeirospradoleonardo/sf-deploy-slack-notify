@@ -101,7 +101,7 @@ async function init() {
     let status = deployReport.result?.status
     let errors = getErrors(deployReport);
     let prLink = 'http://salesforce.com/'
-    let prTitle = githubjson.event.pull_request.title;
+    let prTitle = githubjson.event.pull_request?.title;
     let slackMessage;
     let actor = githubjson.actor;
     console.log(JSON.stringify(deployReport));
