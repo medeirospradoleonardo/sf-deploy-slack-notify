@@ -64,7 +64,7 @@ function getErrors(report){
   let errors = [];
   
   report?.result?.files?.forEach( file => {
-    if(file?.state !== 'Created'){
+    if(file?.state !== 'Created' && file?.state !== 'Changed'){
       errors.push({
         "type": "text",
         "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
