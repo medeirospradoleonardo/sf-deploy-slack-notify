@@ -96,9 +96,9 @@ async function init() {
     
     let orgUrl = SALESFORCE_ORG_URL;
     let deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
-    let deployId = deployReport.result.id;
-    let deploySuccess = deployReport.result.success;
-    let status = deployReport.result.status
+    let deployId = deployReport.result?.id;
+    let deploySuccess = deployReport.result?.success;
+    let status = deployReport.result?.status
     let errors = getErrors(deployReport);
     let prLink = 'http://salesforce.com/'
     let prTitle = githubjson.event.pull_request.title;
