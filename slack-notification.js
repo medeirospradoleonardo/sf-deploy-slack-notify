@@ -18,7 +18,7 @@ async function getSlackMessage(prLink, prName, deployId, deploySuccess, actor, t
 
   console.log('orgUrl2 ' + orgUrl);
 
-  let skipPmdIcon = prName.includes('--skip-pmd-check') ? '✅' : '🚫';
+  let skipPmdIcon = prName.includes('--skip-pmd-check') ? '🟢' : '🛑';
   prName = prName.replace('--skip-pmd-check', '')
   let deployUrl = orgUrl + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId +'&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
   let titleMessage = deploySuccess ? 'Seu deploy foi realizado com successo! ' : "Parece que o seu deploy não deu muito certo 😔";
@@ -64,10 +64,17 @@ function getErrors(report){
   let errors = [];
   
   report?.result?.files?.forEach( file => {
-    errors.push({
-      "type": "text",
-      "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
-    })
+    if(file?.state !== 'Created' && file?.state !== 'Changed'){
+      errors.push({
+        "type": "text",
+        "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
+      })
+    }else{
+      errors.push({
+        "type": "text",
+        "text": `🟢 [${file.type}] ${file.fullName} \n`
+      })
+    }
   })
   let rich_text_errors = [{
     "type" : "rich_text_preformatted",
@@ -89,14 +96,15 @@ async function init() {
     
     let orgUrl = SALESFORCE_ORG_URL;
     let deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
-    let deployId = deployReport.result.id;
-    let deploySuccess = deployReport.result.success;
-    let status = deployReport.result.status
+    let deployId = deployReport.result?.id;
+    let deploySuccess = deployReport.result?.success;
+    let status = deployReport.result?.status
     let errors = getErrors(deployReport);
     let prLink = 'http://salesforce.com/'
     let prTitle = githubjson.event.pull_request.title;
     let slackMessage;
     let actor = githubjson.actor;
+    console.log(JSON.stringify(deployReport));
     if(githubjson?.event_name === 'pull_request'){
       let triggeringActor = githubjson.triggering_actor;
       let head_branch = githubjson.head_ref;
