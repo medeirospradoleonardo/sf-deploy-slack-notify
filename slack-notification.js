@@ -18,7 +18,7 @@ async function getSlackMessage(prLink, prName, deployId, deploySuccess, actor, t
 
   console.log('orgUrl2 ' + orgUrl);
 
-  let skipPmdIcon = prName.includes('--skip-pmd-check') ? '✅' : '🚫';
+  let skipPmdIcon = prName.includes('--skip-pmd-check') ? '🟢' : '🛑';
   prName = prName.replace('--skip-pmd-check', '')
   let deployUrl = orgUrl + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId +'&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
   let titleMessage = deploySuccess ? 'Seu deploy foi realizado com successo! ' : "Parece que o seu deploy não deu muito certo 😔";
