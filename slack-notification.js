@@ -1,155 +1,163 @@
 const args = require("minimist")(process.argv.slice(2));
 const fs = require("node:fs");
 const core = require('@actions/core');
-const github = require('@actions/github');
 require("dotenv").config();
-
 const SLACK_GITHUB_TOKEN = process.env.SLACK_GITHUB_TOKEN;
-const SLACK_GITHUB_CHANNEL = process.env.SLACK_GITHUB_CHANNEL;
 const SLACK_USERS_MAP = process.env.SLACK_USERS_MAP;
 const GITHUB_JSON = process.env.GITHUB_JSON;
 const SALESFORCE_ORG_URL = process.env.SALESFORCE_ORG_URL;
 
-async function getSlackMessage(prLink, prName, deployId, deploySuccess, actor, triggeringActor, status, errors, orgUrl, base, head){
-  if(!orgUrl){
-    console.log('!orgUrl ' + !orgUrl);
-    orgUrl = 'http://login.salesforce.com';
-  }
+function toTitleCase(str) {
+    return str
+        .toLowerCase()
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
 
-  console.log('orgUrl2 ' + orgUrl);
+async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
+    const deployId = deployReport.result?.id;
+    const deployUrl = SALESFORCE_ORG_URL + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId + '&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
 
-  let skipPmdIcon = prName.includes('--skip-pmd-check') ? '🟢' : '🛑';
-  prName = prName.replace('--skip-pmd-check', '')
-  let deployUrl = orgUrl + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId +'&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
-  let titleMessage = deploySuccess ? 'Seu deploy foi realizado com successo! ' : "Parece que o seu deploy não deu muito certo 😔";
-  let messageContent = `*<${prLink} | ${prName} >* \n *Skip PMD:* ${skipPmdIcon} \n *Deployment:* <${deployUrl} |Link>\n*Actor:* ${actor}  - *Triggering Actor:* ${triggeringActor}  \n *Status*: ${status} `;
-  messageContent += `\n *From:* ${head} *To:* ${base}`
-  console.log('messageContent : ' + messageContent);
-  return {
-    "blocks": [
-      {
-        "type": "section",
-        "text": {
-          "type": "plain_text",
-          "emoji": true,
-          "text": titleMessage
-        }
-      },
-      {
-        "type": "divider"
-      },
-      {
-        "type": "section",
-        "text": {
-          "type": "mrkdwn",
-          "text": messageContent
+    const deploySuccess = deployReport.result?.success;
+    const statusIcon = deploySuccess ? '🟢' : '🛑';
+    const deployLabel = deployType === 'validate' ? 'Validate' : 'Deploy';
+
+    const actor = githubJson.actor;
+    const triggeringActor = githubJson.event?.pull_request?.user?.login || githubJson.event?.head_commit?.author?.username || actor;
+
+    let prOrCommitTitle = githubJson.event.pull_request?.title ?? githubJson.event.head_commit?.message;
+    prOrCommitTitle = prOrCommitTitle.replace(/\s*--\S+/g, '').trim();
+    const prOrCommitUrl = githubJson.event.pull_request?.html_url ?? githubJson.event.head_commit?.url ?? '';
+
+    const branchFrom = githubJson.event.pull_request?.head?.ref ?? githubJson.event.head_commit?.branch;
+    const branchTo = githubJson.event.pull_request?.base?.ref ?? githubJson.ref_name
+
+
+    const titleMessage = `${statusIcon} ${deploySuccess ? `Seu ${deployLabel} foi realizado com successo!` : `Parece que o seu ${deployLabel} não deu muito certo 😔`}`;
+    const messageContent = `*<${prOrCommitUrl} | ${prOrCommitTitle} >* \n*Org:* ${SALESFORCE_ORG_URL ? `<${deployUrl} | ${toTitleCase(orgName)}>` : toTitleCase(orgName)}\n*Autor:* ${actor}\n*Autor que acionou:* ${triggeringActor}\n${!!branchFrom ? `*De:* ${branchFrom} ` : ''}${!!branchTo ? `*Para:* ${branchTo}` : ''}`;
+
+    const errors = getErrors(deployReport);
+
+    const blocks = [
+        {
+            type: "divider"
         },
-        "accessory": {
-          "type": "image",
-          "image_url": "https://api.slack.com/img/blocks/bkb_template_images/notifications.png",
-          "alt_text": "calendar thumbnail"
+        {
+            type: "section",
+            text: {
+                type: "plain_text",
+                emoji: true,
+                text: titleMessage
+            }
+        },
+        {
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: messageContent
+            },
+            accessory: {
+                type: "image",
+                image_url: "https://api.slack.com/img/blocks/bkb_template_images/notifications.png",
+                alt_text: "calendar thumbnail"
+            }
+        },
+        {
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: `*Erros encontrados:*\n`
+            }
         }
-      },
-      {
-        "type": "rich_text",
-        "elements": errors
-      },
-      {
-        "type": "divider"
-      }
-    ]
-  };
-}
-function getErrors(report){
-  let errors = [];
-  
-  report?.result?.files?.forEach( file => {
-    if(file?.state !== 'Created' && file?.state !== 'Changed'){
-      errors.push({
-        "type": "text",
-        "text": `🛑 [${file.type}] ${file.fullName} : ${file.error} \n`
-      })
-    }else{
-      errors.push({
-        "type": "text",
-        "text": `🟢 [${file.type}] ${file.fullName} \n`
-      })
-    }
-  })
-  let rich_text_errors = [{
-    "type" : "rich_text_preformatted",
-    "elements" : errors
-  }]
+    ];
 
-  
-  return rich_text_errors;
-}
-async function init() {
-  try{
-    const usersMap = JSON.parse(SLACK_USERS_MAP);
-    const githubjson = JSON.parse(GITHUB_JSON);
-    for(const variavel in githubjson){
-      if(variavel === 'event'){
-        
-      }
-    }
-    
-    let orgUrl = SALESFORCE_ORG_URL;
-    let deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
-    let deployId = deployReport.result?.id;
-    let deploySuccess = deployReport.result?.success;
-    let status = deployReport.result?.status
-    let errors = getErrors(deployReport);
-    let prLink = 'http://salesforce.com/'
-    let prTitle = githubjson.event.pull_request?.title;
-    let slackMessage;
-    let actor = githubjson.actor;
-    console.log(JSON.stringify(githubjson));
-    console.log(JSON.stringify(deployReport));
-    if(githubjson?.event_name === 'pull_request'){
-      let triggeringActor = githubjson.triggering_actor;
-      let head_branch = githubjson.head_ref;
-      let base_branch = githubjson.base_ref;
-      slackMessage = await getSlackMessage(prLink, prTitle, deployId, deploySuccess, actor, triggeringActor, status, errors, orgUrl, base_branch, head_branch)
+    if (errors.length > 0) {
+        blocks.push({
+            type: "rich_text",
+            elements: errors
+        });
     }
 
-    
-    let token = SLACK_GITHUB_TOKEN;
-    let channel = usersMap[actor];
-    const url = "https://slack.com/api/chat.postMessage";
-    console.log('orgUrl : ' + orgUrl);
-    if(!token || !channel){
-      core.setFailed('Token ou canal inválido');
-      console.log('Token ou canal inválido');
-      process.exit(1);
-    }
-    let headers = new Headers();
-    headers.set("Authorization", "Bearer " + token);
-    headers.set("Content-Type", "application/json");
-    const request = new Request(url, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({
-        channel,
-        blocks: JSON.parse(JSON.stringify(slackMessage?.blocks))
-      })
+    const payload = { blocks };
+
+    return payload;
+}
+
+function getErrors(report) {
+    let errors = [];
+
+    report?.result?.details?.componentFailures?.forEach(component => {
+        if (!component.componentType) {
+            return;
+        }
+
+        errors.push({
+            type: "text",
+            text: `[${component.componentType}] ${component.fullName} - ${component.problem} \n`
+        });
     });
 
-    const response = await fetch(request);
+    report?.result?.details?.runTestResult?.codeCoverageWarnings?.forEach(warning => {
+        errors.push({
+            type: "text",
+            text: `[ApexClass] ${warning.name} - ${warning.message} \n`
+        });
+    });
 
-    const responseString = await response.text();
+    return [{
+        "type": "rich_text_preformatted",
+        "elements": errors
+    }];
+}
 
-    if(!deploySuccess){
-      
-      core.setFailed('Houve um erro no deploy.');
-      console.log('\n ---- ERROR SET FAILED ----');
-      process.exit(1);
+async function init() {
+    try {
+        const deployType = args.deployType || 'validate';
+        const orgName = args.orgName;
+        const usersMap = JSON.parse(SLACK_USERS_MAP);
+        const githubJson = JSON.parse(GITHUB_JSON);
+
+        const deployReport = JSON.parse(fs.readFileSync('out.txt', "utf8"));
+        const deploySuccess = deployReport.result?.success;
+        const actor = githubJson.actor;
+
+        const slackMessage = await getSlackMessage(githubJson, deployReport, deployType, orgName)
+
+        const token = SLACK_GITHUB_TOKEN;
+        const channel = usersMap[actor];
+        const url = "https://slack.com/api/chat.postMessage";
+
+        if (!token || !channel) {
+            core.setFailed('Token ou canal inválido');
+            console.log('Token ou canal inválido');
+            process.exit(1);
+        }
+
+        const headers = new Headers();
+        headers.set("Authorization", "Bearer " + token);
+        headers.set("Content-Type", "application/json");
+        const request = new Request(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({
+                channel,
+                blocks: JSON.parse(JSON.stringify(slackMessage?.blocks))
+            })
+        });
+
+        const response = await fetch(request);
+
+        const responseString = await response.text();
+
+        if (!deploySuccess) {
+            core.setFailed('Houve um erro no deploy.');
+            process.exit(1);
+        }
+
+        return console.log('deploySuccess : ' + deploySuccess + responseString);
+
+    } catch (e) {
+        return console.log(e.stack);
     }
-    return console.log('deploySuccess : ' + deploySuccess + responseString);
-
-  }catch(e){
-    return console.log(e.stack);
-  }
 }
 
 init();
