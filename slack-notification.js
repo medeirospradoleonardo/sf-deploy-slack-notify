@@ -31,11 +31,8 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const branchFrom = githubJson.event.pull_request?.head?.ref ?? githubJson.event.head_commit?.branch;
     const branchTo = githubJson.event.pull_request?.base?.ref ?? githubJson.ref_name
 
-
     const titleMessage = `${statusIcon} ${deploySuccess ? `Seu ${deployLabel} foi realizado com successo!` : `Parece que o seu ${deployLabel} não deu muito certo 😔`}`;
     const messageContent = `*<${prOrCommitUrl} | ${prOrCommitTitle} >* \n*Org:* ${SALESFORCE_ORG_URL ? `<${deployUrl} | ${toTitleCase(orgName)}>` : toTitleCase(orgName)}\n*Autor:* ${actor}\n*Autor que acionou:* ${triggeringActor}\n${!!branchFrom ? `*De:* ${branchFrom} ` : ''}${!!branchTo ? `*Para:* ${branchTo}` : ''}`;
-
-    const errors = getErrors(deployReport);
 
     const blocks = [
         {
@@ -63,8 +60,9 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
         }
     ];
 
-    if (errors.length > 0) {
-
+    const errors = getErrors(deployReport);
+    
+    if (errors?.[0]?.elements?.length) {
         blocks.push({
             type: "section",
             text: {
@@ -77,7 +75,6 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
             type: "rich_text",
             elements: errors
         });
-        
     }
 
     const payload = { blocks };
@@ -107,8 +104,8 @@ function getErrors(report) {
     });
 
     return [{
-        "type": "rich_text_preformatted",
-        "elements": errors
+        type: "rich_text_preformatted",
+        elements: errors
     }];
 }
 
@@ -147,16 +144,14 @@ async function init() {
             })
         });
 
-        const response = await fetch(request);
-
-        const responseString = await response.text();
+        await fetch(request);
 
         if (!deploySuccess) {
             core.setFailed('Houve um erro no deploy.');
             process.exit(1);
         }
 
-        return console.log('deploySuccess : ' + deploySuccess + responseString);
+        return console.log('Mensagem enviada com sucesso para o Slack de ', actor);
 
     } catch (e) {
         return console.log(e.stack);
