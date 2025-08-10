@@ -60,21 +60,24 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
                 image_url: "https://api.slack.com/img/blocks/bkb_template_images/notifications.png",
                 alt_text: "calendar thumbnail"
             }
-        },
-        {
+        }
+    ];
+
+    if (errors.length > 0) {
+
+        blocks.push({
             type: "section",
             text: {
                 type: "mrkdwn",
                 text: `*Erros encontrados:*\n`
             }
-        }
-    ];
+        });
 
-    if (errors.length > 0) {
         blocks.push({
             type: "rich_text",
             elements: errors
         });
+        
     }
 
     const payload = { blocks };
