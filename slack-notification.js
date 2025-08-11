@@ -13,13 +13,17 @@ function toTitleCase(str) {
         .replace(/\b\w/g, char => char.toUpperCase());
 }
 
+function getDeployTypeLabel(deployType) {
+    return deployType === 'validate' ? 'Validate' : 'Deploy';
+}
+
 function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const deployId = deployReport.result?.id;
     const deployUrl = SALESFORCE_ORG_URL + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId + '&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
 
     const deploySuccess = deployReport.result?.success;
     const statusIcon = deploySuccess ? '🟢' : '🛑';
-    const deployLabel = deployType === 'validate' ? 'Validate' : 'Deploy';
+    const deployLabel = getDeployTypeLabel(deployType);
 
     const triggeringActor = githubJson.actor;
     const actor = githubJson.event?.pull_request?.user?.login || githubJson.event?.head_commit?.author?.username || triggeringActor;
@@ -92,6 +96,7 @@ function getSlackMessage(githubJson, deployReport, deployType, orgName) {
 function getErrors(report) {
     let errors = [];
 
+    // pega componentes que falharam
     report?.result?.details?.componentFailures?.forEach(component => {
         if (!component.componentType) {
             return;
@@ -99,14 +104,23 @@ function getErrors(report) {
 
         errors.push({
             type: "text",
-            text: `[${component.componentType}] ${component.fullName} - ${component.problem} \n`
+            text: `[${component.componentType}] ${component.fullName} - ${component.problem}:  line ${component.lineNumber}, column ${component.columnNumber} \n`
         });
     });
 
+    // pega classes de teste sem cobertura
     report?.result?.details?.runTestResult?.codeCoverageWarnings?.forEach(warning => {
         errors.push({
             type: "text",
             text: `[ApexClass] ${warning.name} - ${warning.message} \n`
+        });
+    });
+
+    // pega falhas de teste
+    report?.result?.details?.runTestResult?.failures?.forEach(failure => {
+        errors.push({
+            type: "text",
+            text: `[ApexClass] ${failure.name} - ${failure.message} - ${failure.stackTrace} \n`
         });
     });
 
@@ -183,11 +197,11 @@ async function init() {
         }
 
         if (!deploySuccess) {
-            core.setFailed('Houve um erro no deploy.');
+            core.setFailed(`Houve um erro no ${getDeployTypeLabel(deployType)}.`);
             process.exit(1);
         }
 
-        return console.log('Mensagem enviada com sucesso para o Slack de ', actor);
+        return console.log('Mensagem enviada com sucesso para o Slack de', actor);
 
     } catch (e) {
         return console.log(e.stack);
