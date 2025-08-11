@@ -21,8 +21,8 @@ function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const statusIcon = deploySuccess ? '🟢' : '🛑';
     const deployLabel = deployType === 'validate' ? 'Validate' : 'Deploy';
 
-    const actor = githubJson.actor;
-    const triggeringActor = githubJson.event?.pull_request?.user?.login || githubJson.event?.head_commit?.author?.username || actor;
+    const triggeringActor = githubJson.actor;
+    const actor = githubJson.event?.pull_request?.user?.login || githubJson.event?.head_commit?.author?.username || triggeringActor;
 
     let prOrCommitTitle = githubJson.event.pull_request?.title ?? githubJson.event.head_commit?.message;
     prOrCommitTitle = prOrCommitTitle.replace(/\s*--\S+/g, '').trim();
