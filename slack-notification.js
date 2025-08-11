@@ -13,7 +13,7 @@ function toTitleCase(str) {
         .replace(/\b\w/g, char => char.toUpperCase());
 }
 
-async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
+function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const deployId = deployReport.result?.id;
     const deployUrl = SALESFORCE_ORG_URL + '/one/one.app#/alohaRedirect/changemgmt/monitorDeploymentsDetails.apexp?asyncId=' + deployId + '&retURL=%2Fchangemgmt%2FmonitorDeployment.apexp&isdtp=p1'
 
@@ -31,7 +31,8 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const branchFrom = githubJson.event.pull_request?.head?.ref ?? githubJson.event.head_commit?.branch;
     const branchTo = githubJson.event.pull_request?.base?.ref ?? githubJson.ref_name
 
-    const titleMessage = `${statusIcon} ${deploySuccess ? `Seu ${deployLabel} foi realizado com successo!` : `Parece que o seu ${deployLabel} não deu muito certo 😔`}`;
+    const titleMessage = `${statusIcon} ${deploySuccess ? `O ${deployLabel} foi realizado com successo!` :
+        `Parece que o ${deployLabel} não deu muito certo 😔`}`;
     const messageContent = `*<${prOrCommitUrl} | ${prOrCommitTitle} >* \n*Org:* ${SALESFORCE_ORG_URL ? `<${deployUrl} | ${toTitleCase(orgName)}>` : toTitleCase(orgName)}\n*Autor:* ${actor}\n*Autor que acionou:* ${triggeringActor}\n${!!branchFrom ? `*De:* ${branchFrom} ` : ''}${!!branchTo ? `*Para:* ${branchTo}` : ''}`;
 
     const blocks = [
@@ -61,7 +62,7 @@ async function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     ];
 
     const errors = getErrors(deployReport);
-    
+
     if (errors?.[0]?.elements?.length) {
         blocks.push({
             type: "section",
@@ -113,6 +114,7 @@ async function init() {
     try {
         const deployType = args.deployType || 'validate';
         const orgName = args.orgName;
+        const notifyUsersOnDeploy = args.notifyUsersOnDeploy;
         const usersMap = JSON.parse(SLACK_USERS_MAP);
         const githubJson = JSON.parse(GITHUB_JSON);
 
@@ -120,7 +122,7 @@ async function init() {
         const deploySuccess = deployReport.result?.success;
         const actor = githubJson.actor;
 
-        const slackMessage = await getSlackMessage(githubJson, deployReport, deployType, orgName)
+        const slackMessage = getSlackMessage(githubJson, deployReport, deployType, orgName)
 
         const token = SLACK_GITHUB_TOKEN;
         const channel = usersMap[actor];
@@ -135,6 +137,7 @@ async function init() {
         const headers = new Headers();
         headers.set("Authorization", "Bearer " + token);
         headers.set("Content-Type", "application/json");
+
         const request = new Request(url, {
             method: "POST",
             headers: headers,
@@ -145,6 +148,33 @@ async function init() {
         });
 
         await fetch(request);
+
+        if (deploySuccess && notifyUsersOnDeploy) {
+            const usersToNotify = process.env.USERS_TO_NOTIFY_ON_DEPLOY
+                ? process.env.USERS_TO_NOTIFY_ON_DEPLOY.split(';').map(s => s.trim())
+                : [];
+
+            if (usersToNotify.length > 0) {
+                const promises = usersToNotify.map(user => {
+                    const userChannel = usersMap[user];
+
+                    if (!userChannel) return null;
+
+                    const request = new Request(url, {
+                        method: "POST",
+                        headers: headers,
+                        body: JSON.stringify({
+                            channel: userChannel,
+                            blocks: JSON.parse(JSON.stringify(slackMessage?.blocks)),
+                        }),
+                    });
+
+                    return fetch(request);
+                }).filter(Boolean);
+
+                await Promise.all(promises);
+            }
+        }
 
         if (!deploySuccess) {
             core.setFailed('Houve um erro no deploy.');
