@@ -24,8 +24,15 @@ function getSlackMessage(githubJson, deployReport, deployType, orgName) {
     const triggeringActor = githubJson.actor;
     const actor = githubJson.event?.pull_request?.user?.login || githubJson.event?.head_commit?.author?.username || triggeringActor;
 
-    let prOrCommitTitle = githubJson.event.pull_request?.title ?? githubJson.event.head_commit?.message;
+    let prOrCommitTitle = githubJson.event.pull_request?.title 
+    ?? githubJson.event.head_commit?.message;
+
     prOrCommitTitle = prOrCommitTitle.replace(/\s*--\S+/g, '').trim();
+
+    const match = prOrCommitTitle.match(/\b(?:Fixed\s+)?[A-Za-z]+#\d+\b/i);
+    prOrCommitTitle = match ? match?.[0] : prOrCommitTitle;
+
+    console.log(prOrCommitTitle)
     const prOrCommitUrl = githubJson.event.pull_request?.html_url ?? githubJson.event.head_commit?.url ?? '';
 
     const branchFrom = githubJson.event.pull_request?.head?.ref ?? githubJson.event.head_commit?.branch;
